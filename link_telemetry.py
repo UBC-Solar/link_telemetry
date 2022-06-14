@@ -9,6 +9,7 @@ import struct
 import random
 import time
 import argparse
+import paho.mqtt.client as mqtt
 
 # <----- Constants ----->
 
@@ -23,10 +24,10 @@ ORG = "UBC Solar"
 TOKEN = "PZreIdWtOD02sk3RQTraXtCkazjI7VPPw8E_1NSPe_9TVt9JwjbW5h3xSNj5N9uoevmXMs8gAQrMrhqH57AKhQ=="
 URL = "http://localhost:8086"
 
-# <----- Server start-ups ----->
+# <----- MQTT constants ----->
 
-# TODO: start InfluxDB server here
-# TODO: start Grafana server here
+MQTT_BROKER_URL = "localhost"
+MQTT_BROKER_PORT = 1883
 
 # <----- Class definitions ------>
 
@@ -222,6 +223,11 @@ def random_can_str(can_schema) -> str:
 
     return can_str
 
+# <----- MQTT callback functions ----->
+
+def on_connect(client, userdata, flags, rc):
+    print(f"Connected to MQTT broker with result code: {rc}")
+
 
 def main():
 
@@ -236,6 +242,8 @@ def main():
     debug_group.add_argument("-d", "--debug", action="store_true", help=("Enables debug mode. This allows using the "
                                                                          "telemetry link with randomly generated CAN "
                                                                          "data rather using an actual radio telemetry stream"))
+
+    debug_group.add_argument("--no-write", action="store_true", help=("Disables writing to InfluxDB bucket and MQTT broker"))
 
     normal_group.add_argument("-p", "--port", action="store",
                               help=("Specifies the serial port to read radio data from. "
@@ -261,6 +269,14 @@ def main():
 
     client = influxdb_client.InfluxDBClient(url=URL, org=ORG, token=TOKEN)
     write_api = client.write_api(write_options=SYNCHRONOUS)
+
+    # <----- MQTT client set-up ----->
+
+    client = mqtt.Client()
+    client.on_connect = on_connect
+
+    client.connect(MQTT_BROKER_URL, MQTT_BROKER_PORT, 60)
+    client.loop_start()
 
     # <----- Read in YAML CAN schema file ----->
 
@@ -305,11 +321,16 @@ def main():
             m_class = data["class"]
             value = data["value"]
 
-            p = influxdb_client.Point(source).tag("car", CAR_NAME).tag(
-                "class", m_class).field(measurement, value)
-            print(p)
+            topic = f"release/{CAR_NAME}/{source}/{m_class}/{measurement}"
+            msg_info = client.publish(topic, value)
+            print(f"Wrote {value} value to {topic} with return code {msg_info.rc}")
 
-            write_api.write(bucket=BUCKET, org=ORG, record=p)
+            # p = influxdb_client.Point(source).tag("car", CAR_NAME).tag(
+            #     "class", m_class).field(measurement, value)
+            # print(p)
+
+            # if args.no_write is False:
+            #     write_api.write(bucket=BUCKET, org=ORG, record=p)
 
         print()
 

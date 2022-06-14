@@ -2,6 +2,7 @@ certifi==2021.10.8
 charset-normalizer==2.0.12
 idna==3.3
 influxdb-client==1.28.0
+paho-mqtt==1.6.1
 pyserial==3.5
 python-dateutil==2.8.2
 pytz==2022.1
