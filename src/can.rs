@@ -2,8 +2,9 @@
 pub struct StandardFrame {
     timestamp: u32,
     id: u32,
-    data: Vec<u8>,
-    length: u32,
+    payload: u64,
+    payload_bytes: Vec<u8>,
+    length: u8,
 }
 
 impl StandardFrame {
@@ -12,11 +13,11 @@ impl StandardFrame {
 
         if verified {
             // separate stream message into parts
-            let timestamp = Self::interpret(stream_message.get(0..8).unwrap());
-            let id = Self::interpret(stream_message.get(8..12).unwrap());
-            let length = Self::interpret(stream_message.get(28..29).unwrap());
+            let timestamp = u32::from_str_radix(stream_message.get(0..8).unwrap(), 16).unwrap();
+            let id = u32::from_str_radix(stream_message.get(8..12).unwrap(), 16).unwrap();
+            let length = u8::from_str_radix(stream_message.get(28..29).unwrap(), 16).unwrap();
 
-            let data = stream_message
+            let payload_bytes = stream_message
                 .get(12..28)
                 .unwrap()
                 .as_bytes()
@@ -25,29 +26,23 @@ impl StandardFrame {
                 .map(|c| u8::from_str_radix(c, 16).unwrap())
                 .collect::<Vec<u8>>();
 
+            let payload = u64::from_str_radix(stream_message.get(12..28).unwrap(), 16).unwrap();
+
             Ok(Self {
                 timestamp,
                 id,
-                data,
+                payload,
+                payload_bytes,
                 length,
             })
         } else {
-            Err("stream message argument is malformed")
+            Err("unable to convert stream message into standard frame type")
         }
     }
 
     pub fn verify(stream_message: &str) -> bool {
+        // TODO: improve this
         stream_message.len() == 30
-    }
-
-    pub fn interpret(slice: &str) -> u32 {
-        slice
-            .chars()
-            .rev()
-            .map(|c| c.to_digit(16).unwrap())
-            .enumerate()
-            .map(|(idx, digit)| 16u32.pow(idx as u32) * digit)
-            .sum::<u32>()
     }
 
     pub fn id(&self) -> u32 {
