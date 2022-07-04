@@ -49,4 +49,12 @@ impl StandardFrame {
             .map(|(idx, digit)| 16u32.pow(idx as u32) * digit)
             .sum::<u32>()
     }
+
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
+    pub fn payload(&self) -> u64 {
+        self.payload
+    }
 }
