@@ -11,10 +11,12 @@ pub struct Measurement {
 pub enum MeasurementValue {
     IEEE32Float(f32),
     Bool(bool),
-    Unsigned(u8),
+    Unsigned8(u8),
+    Unsigned16(u16),
     Incremental(f32),
     Signed16(i16),
     Signed8(i8),
+    Invalid
 }
 
 impl Measurement {
