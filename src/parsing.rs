@@ -19,7 +19,8 @@ pub struct Parser {
 pub enum ParseType {
     IEEE32Float,
     Bool,
-    Unsigned,
+    Unsigned16,
+    Unsigned8,
     Incremental,
     Signed16,
     Signed8,
@@ -30,7 +31,8 @@ impl ParseType {
         match string {
             "ieee32_float" => Ok(ParseType::IEEE32Float),
             "bool" => Ok(ParseType::Bool),
-            "unsigned" => Ok(ParseType::Unsigned),
+            "unsigned_16" => Ok(ParseType::Unsigned16),
+            "unsigned_8" => Ok(ParseType::Unsigned8),
             "incremental" => Ok(ParseType::Incremental),
             "signed_16" => Ok(ParseType::Signed16),
             "signed_8" => Ok(ParseType::Signed8),
@@ -43,6 +45,8 @@ impl Parser {
     pub fn new(schema_path: PathBuf) -> Result<Self, std::io::Error> {
         // read YAML from path into string
         let read_result = fs::read_to_string(&schema_path);
+
+        // TODO: add verification of schema here
 
         match read_result {
             Ok(schema_string) => {
@@ -78,7 +82,7 @@ impl Parser {
                 // name of the measurement
                 let ms_name = entry.key().as_str().unwrap();
 
-                // information about how to parse it
+                // information about how to parse the measurement
                 let extraction_data = entry.get();
 
                 let bits = extraction_data["bits"].as_vec().unwrap();
@@ -98,18 +102,10 @@ impl Parser {
 
                 let parse_type = ParseType::into_parse_type(ms_type).unwrap();
 
-                // println!(
-                //     "{:?} => bits: {:?}:{:?}, parse type: {:?}",
-                //     ms_name, lower_bit, upper_bit, parse_type
-                // );
-
                 // extract measurement value
                 let value = Self::extract(frame.payload(), parse_type, lower_bit, upper_bit);
 
-                // println!("Parsed value: {:?}", value);
-
                 // package into Measurement struct
-
                 let new_measurement =
                     Measurement::new(frame.id(), msg_name.to_string(), source.to_string(), ms_name.to_string(), value);
 
@@ -122,8 +118,6 @@ impl Parser {
     }
 
     pub fn extract(payload: u64, p_type: ParseType, lower: u8, upper: u8) -> MeasurementValue {
-        let final_measurement = MeasurementValue::Bool(false);
-
         match p_type {
             ParseType::IEEE32Float => {
                 assert!(
@@ -139,13 +133,52 @@ impl Parser {
 
                 let flag = payload >> (64 - (upper + 1)) & 0x1;
 
-                if flag == 1 {
-                    MeasurementValue::Bool(true)
-                } else {
-                    MeasurementValue::Bool(false)
+                match flag {
+                    0 => MeasurementValue::Bool(false),
+                    1 => MeasurementValue::Bool(true),
+                    _ => MeasurementValue::Invalid
                 }
             }
-            _ => final_measurement,
+            ParseType::Unsigned8 => {
+                assert!(
+                    upper - lower == 7,
+                    "difference between bit bounds must be 7 for this type"
+                );
+                let value = payload >> (64 - (upper + 1)) & 0xFF;
+                MeasurementValue::Unsigned8(value as u8)
+            },
+            ParseType::Unsigned16 => {
+                assert!(
+                    upper - lower == 15,
+                    "difference between bit bounds must be 15 for this type"
+                );
+                let value = payload >> (64 - (upper + 1)) & 0xFFFF;
+                MeasurementValue::Unsigned16(value as u16)
+            },
+            ParseType::Signed8 => {
+                assert!(
+                    upper - lower == 7,
+                    "difference between bit bounds must be 7 for this type"
+                );
+                let value = payload >> (64 - (upper + 1)) & 0xFF;
+                MeasurementValue::Signed8(value as i8)
+            },
+            ParseType::Signed16 => {
+                assert!(
+                    upper - lower == 15,
+                    "difference between bit bounds must be 15 for this type"
+                );
+                let value = payload >> (64 - (upper + 1)) & 0xFF;
+                MeasurementValue::Signed16(value as i16)
+            },
+            ParseType::Incremental => {
+                assert!(
+                    upper - lower == 7,
+                    "difference between bit bounds must be 7 for this type"
+                );
+                let value = payload >> (64 - (upper + 1)) & 0xFFFF_FFFF;
+                MeasurementValue::Incremental(value as f32 * 0.1)
+            }
         }
     }
 }
