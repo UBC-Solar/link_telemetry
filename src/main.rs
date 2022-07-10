@@ -1,14 +1,30 @@
+extern crate yaml_rust;
+
 use can::StandardFrame;
-use std::time::Instant;
+use std::{error::Error, path::PathBuf, time::Instant};
 
 mod can;
+mod measurement;
+mod parsing;
 
 fn main() {
-    let test_string = String::from("DDDDDDDD062600FF00FF00FF00FF8\n");
+    // read CAN string
+    // let test_string = String::from("DDDDDDDD05014120000041a000008\n");
 
-    let start_time = Instant::now();
+    // 0x626
+    let test_string = String::from("DDDDDDDD06279A20000041a000008\n");
 
-    let frame = StandardFrame::new(test_string);
+    let frame = StandardFrame::new(test_string).unwrap();
 
-    println!("{:#?}, time taken: {:?}", frame, start_time.elapsed());
+    println!("{:#?}", frame);
+
+    let yaml_path = PathBuf::from("can-rust.yaml").canonicalize().unwrap();
+
+    // create parser
+    let parser = parsing::Parser::new(yaml_path).unwrap();
+
+    // extract measurements
+    let extracted_measurements = parser.parse(frame);
+
+    println!("Extracted measurements: {:#?}", extracted_measurements);
 }
