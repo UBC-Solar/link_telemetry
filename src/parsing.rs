@@ -168,7 +168,7 @@ impl Parser {
                     upper - lower == 15,
                     "difference between bit bounds must be 15 for this type"
                 );
-                let value = payload >> (64 - (upper + 1)) & 0xFF;
+                let value = payload >> (64 - (upper + 1)) & 0xFFFF;
                 MeasurementValue::Signed16(value as i16)
             },
             ParseType::Incremental => {
